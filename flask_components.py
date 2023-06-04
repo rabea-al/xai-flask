@@ -1,6 +1,12 @@
 from xai_components.base import InArg, OutArg, InCompArg, Component, BaseComponent, xai_component
 from flask import Flask, request, redirect, render_template, session
 
+import random
+import string
+
+def random_string(length):
+    return ''.join(random.choice(string.ascii_letters) for _ in range(length))
+
 @xai_component
 class FlaskCreateApp(Component):
     name: InCompArg[str]
@@ -23,13 +29,25 @@ class FlaskDefineGetRoute(Component):
     
     def execute(self, ctx):
         app = ctx['flask_app']
-        @app.get(self.route.value)
-        def get_route_fn():
-            ctx['flask_res'] = ''
-            next = self.on_get
-            while next:
-                next = next.do(ctx)
-            return ctx['flask_res']
+        ctx_name = random_string(8)
+        self_name = random_string(8)
+        fn_name = random_string(8)
+        code = f"""
+ctx_{ctx_name} = ctx
+self_{self_name} = self
+@app.get(self.route.value)
+def get_route_fn_{fn_name}():
+    global ctx_{ctx_name}
+    global self_{self_name}
+    self = self_{self_name}
+    ctx = ctx_{ctx_name}
+    ctx['flask_res'] = ''
+    next = self.on_get
+    while next:
+        next = next.do(ctx)
+    return ctx['flask_res']
+        """
+        exec(code, globals(), locals())
         
 @xai_component
 class FlaskDefinePostRoute(Component):
@@ -38,14 +56,25 @@ class FlaskDefinePostRoute(Component):
     
     def execute(self, ctx):
         app = ctx['flask_app']
-        
-        @app.post(self.route.value)
-        def post_route_fn():
-            ctx['flask_res'] = ''
-            next = self.on_post
-            while next:
-                next = next.do(ctx)
-            return ctx['flask_res']
+        ctx_name = random_string(8)
+        self_name = random_string(8)
+        fn_name = random_string(8)
+        code = f"""
+ctx_{ctx_name} = ctx
+self_{self_name} = self
+@app.post(self.route.value)
+def post_route_fn_{fn_name}():
+    global ctx_{ctx_name}
+    global self_{self_name}
+    self = self_{self_name}
+    ctx = ctx_{ctx_name}
+    ctx['flask_res'] = ''
+    next = self.on_post
+    while next:
+        next = next.do(ctx)
+    return ctx['flask_res']
+        """
+        exec(code, globals(), locals())
         
 @xai_component
 class FlaskRenderTemplate(Component):
@@ -53,7 +82,7 @@ class FlaskRenderTemplate(Component):
     args: InArg[dict]
     
     def execute(self, ctx):
-        arg_vars = {} if self.args.value in None else self.args.value
+        arg_vars = {} if self.args.value is None else self.args.value
         
         ctx['flask_res'] = render_template(self.template_name.value, **arg_vars)
 
@@ -89,7 +118,7 @@ class FlaskStartServer(Component):
         app = ctx['flask_app']
         # Can't run debug mode from inside jupyter.
         app.run(
-            debug=False if self.debug_mode.value is None else self.debug_mode.value,
+            debug=False if self.debug.value is None else self.debug.value,
             host="127.0.0.1" if self.host.value is None else self.host.value, 
             port=5000 if self.port.value is None else self.port.value
         )
