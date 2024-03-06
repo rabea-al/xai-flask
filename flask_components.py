@@ -1,5 +1,6 @@
 from xai_components.base import InArg, OutArg, InCompArg, Component, BaseComponent, xai_component
-from flask import Flask, request, redirect, render_template, session
+from flask import Flask, request, redirect, render_template, session, jsonify
+
 
 import random
 import string
@@ -99,7 +100,7 @@ class FlaskReturnJSONResponse(Component):
     response: InCompArg[any]
     
     def execute(self, ctx):
-        ctx['flask_res'] = self.response.value
+        ctx['flask_res'] = jsonify(self.response.value)
 
 @xai_component
 class FlaskRedirect(Component):
@@ -107,6 +108,54 @@ class FlaskRedirect(Component):
     
     def execute(self, ctx):
         ctx['flask_res'] = redirect(self.url.value)
+
+
+@xai_component
+class FlaskInitScheduler(Component):
+    def execute(self, ctx):
+        from flask_apscheduler import APScheduler
+
+        ctx['flask_scheduler'] = APScheduler()
+
+class Config:
+    SCHEDULER_API_ENABLED = True
+
+        
+
+@xai_component
+class FlaskCreateIntervalJob(Component):
+    on_timeout: BaseComponent
+    
+    job_id: InCompArg[str]
+    seconds: InCompArg[int]
+    
+    def execute(self, ctx):
+        scheduler = ctx['flask_scheduler']
+        
+        try:
+            scheduler.remove_job(self.job_id.value)
+        except:
+            pass
+
+        ctx['flask_scheduler' + self.job_id.value + '_running'] = False
+        
+        @scheduler.task('interval', id=self.job_id.value, seconds=self.seconds.value, misfire_grace_time=self.seconds.value)
+        def job():
+            app = ctx['flask_app']
+            if not ctx['flask_scheduler' + self.job_id.value + '_running']:
+                ctx['flask_scheduler' + self.job_id.value + '_running'] = True
+
+                app.logger.info(f'Running interval job: {self.job_id.value}...')
+                try:
+                    self.on_timeout.do(ctx)
+                    app.logger.info(f'Interval job {self.job_id.value} done.')
+                except Exception as e:
+                    app.logger.error(f'Interval job {self.job_id.value} failed with {e}.')
+                finally:
+                    ctx['flask_scheduler' + self.job_id.value + '_running'] = False
+            else:
+                app.logger.info(f"Job {self.job_id.value} currently running.  Skipping execution.")
+
 
 @xai_component
 class FlaskStartServer(Component):
@@ -116,11 +165,19 @@ class FlaskStartServer(Component):
     
     def execute(self, ctx):
         app = ctx['flask_app']
+        
+        if 'flask_scheduler' in ctx:
+            app.config.from_object(Config())
+            
+            scheduler = ctx['flask_scheduler']
+            scheduler.init_app(app)
+            scheduler.start()
+        
         # Can't run debug mode from inside jupyter.
         app.run(
             debug=False if self.debug.value is None else self.debug.value,
             host="127.0.0.1" if self.host.value is None else self.host.value, 
-            port=5000 if self.port.value is None else self.port.value
+            port=8888 if self.port.value is None else self.port.value
         )
 
 @xai_component
@@ -164,3 +221,11 @@ class FlaskGetFormValue(Component):
     
     def execute(self, ctx):
         self.value.value = request.form[self.key.value]
+
+
+@xai_component
+class FlaskGetRequestJson(Component):
+    value: OutArg[any]
+    
+    def execute(self, ctx):
+        self.value.value = request.json
