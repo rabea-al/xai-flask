@@ -10,6 +10,15 @@ def random_string(length):
 
 @xai_component
 class FlaskCreateApp(Component):
+    """Initializes a Flask application with optional configurations for static files and secret key.
+
+    ##### inPorts:
+    - name: The name of the Flask application.
+    - public_path: The filesystem path to the folder containing static files. Default is 'public'.
+    - static_url_path: The URL path at which the static files are accessible. Default is an empty string.
+    - secret_key: A secret key used for session management and security. Default is 'opensesame'.
+    """
+
     name: InCompArg[str]
     public_path: InArg[str]
     static_url_path: InArg[str]
@@ -25,6 +34,15 @@ class FlaskCreateApp(Component):
 
 @xai_component
 class FlaskDefineGetRoute(Component):
+    """Defines a GET route for a Flask application, linking it to a sequence of actions.
+
+    ##### inPorts:
+    - route: The URL path for the GET route.
+
+    ##### Branch:
+    - on_get: The first component to be executed when the GET route is accessed.
+    """
+
     on_get: BaseComponent
     route: InCompArg[str]
     
@@ -52,6 +70,15 @@ def get_route_fn_{fn_name}():
         
 @xai_component
 class FlaskDefinePostRoute(Component):
+    """Defines a POST route for a Flask application, linking it to a sequence of actions.
+
+    ##### inPorts:
+    - route: The URL path for the POST route.
+
+    ##### Branch:
+    - on_post: The first component to be executed when the POST route is accessed.
+    """
+
     on_post: BaseComponent
     route: InCompArg[str]
     
@@ -79,6 +106,13 @@ def post_route_fn_{fn_name}():
         
 @xai_component
 class FlaskRenderTemplate(Component):
+    """Renders a template with optional arguments for a Flask application.
+
+    ##### inPorts:
+    - template_name: The name of the template file to render.
+    - args: A dictionary of arguments to pass to the template. Default is an empty dictionary.
+    """
+        
     template_name: InCompArg[str]
     args: InArg[dict]
     
@@ -90,6 +124,12 @@ class FlaskRenderTemplate(Component):
 
 @xai_component
 class FlaskReturnStringResponse(Component):
+    """Sets a string response for a Flask route in the ctx.
+
+    ##### inPorts:
+    - response: The string to be returned as the response.
+    """
+
     response: InCompArg[str]
     
     def execute(self, ctx):
@@ -97,6 +137,12 @@ class FlaskReturnStringResponse(Component):
 
 @xai_component
 class FlaskReturnJSONResponse(Component):
+    """Sets a JSON response for a Flask route in the ctx.
+
+    ##### inPorts:
+    - response: The data to be returned as a JSON response.
+    """
+
     response: InCompArg[any]
     
     def execute(self, ctx):
@@ -104,14 +150,26 @@ class FlaskReturnJSONResponse(Component):
 
 @xai_component
 class FlaskRedirect(Component):
+    """Performs a redirection to a specified URL in a Flask application.
+
+    ##### inPorts:
+    - url: The target URL to redirect to.
+    """
+
     url: InCompArg[str]
     
     def execute(self, ctx):
+        # Sets a redirection response to the specified URL
         ctx['flask_res'] = redirect(self.url.value)
-
 
 @xai_component
 class FlaskInitScheduler(Component):
+    """Initializes a scheduler for running background jobs in a Flask application.
+
+    ##### Note:
+    - This component must be executed before starting the server if background jobs are to be scheduled.
+    """
+
     def execute(self, ctx):
         from flask_apscheduler import APScheduler
 
@@ -120,10 +178,18 @@ class FlaskInitScheduler(Component):
 class Config:
     SCHEDULER_API_ENABLED = True
 
-        
-
 @xai_component
 class FlaskCreateIntervalJob(Component):
+    """Creates a scheduled interval job in a Flask application.
+
+    ##### inPorts:
+    - job_id: The identifier for the job.
+    - seconds: The interval time in seconds between executions of the job.
+
+    ##### Branch:
+    - on_timeout: The component to be executed when the job is triggered.
+    """
+
     on_timeout: BaseComponent
     
     job_id: InCompArg[str]
@@ -156,7 +222,6 @@ class FlaskCreateIntervalJob(Component):
             else:
                 app.logger.info(f"Job {self.job_id.value} currently running.  Skipping execution.")
 
-
 @xai_component
 class FlaskStartServer(Component):
     debug: InArg[bool]
@@ -182,6 +247,12 @@ class FlaskStartServer(Component):
 
 @xai_component
 class FlaskSessionPop(Component):
+    """Removes a key-value pair from the session storage in a Flask application.
+
+    ##### inPorts:
+    - key: The key of the session variable to remove.
+    """
+
     key: InCompArg[str]
     
     def execute(self, ctx):
@@ -189,6 +260,13 @@ class FlaskSessionPop(Component):
         
 @xai_component
 class FlaskSessionSet(Component):
+    """Sets a key-value pair in the session storage of a Flask application.
+
+    ##### inPorts:
+    - key: The key of the session variable to set.
+    - value: The value to be assigned to the session key.
+    """
+
     key: InCompArg[str]
     value: InCompArg[any]
     
@@ -197,6 +275,15 @@ class FlaskSessionSet(Component):
         
 @xai_component
 class FlaskSessionGet(Component):
+    """Retrieves a value from the session storage in a Flask application based on the provided key.
+
+    ##### inPorts:
+    - key: The key of the session variable to retrieve.
+
+    ##### outPorts:
+    - value: The value associated with the provided session key.
+    """
+
     key: InCompArg[str]
     value: OutArg[any]
     
@@ -205,6 +292,15 @@ class FlaskSessionGet(Component):
 
 @xai_component
 class FlaskSessionExists(Component):
+    """Checks if a given key exists in the session storage of a Flask application.
+
+    ##### inPorts:
+    - key: The key to check in the session storage.
+
+    ##### outPorts:
+    - exists: Boolean indicating whether the key exists in the session.
+    """
+
     key: InCompArg[str]
     exists: OutArg[bool]
     
@@ -216,6 +312,15 @@ class FlaskSessionExists(Component):
 
 @xai_component
 class FlaskGetFormValue(Component):
+    """Retrieves a value from the form data sent via a POST request in a Flask application.
+
+    ##### inPorts:
+    - key: The name of the form field to retrieve the value from.
+
+    ##### outPorts:
+    - value: The value of the specified form field.
+    """
+
     key: InCompArg[str]
     value: OutArg[str]
     
@@ -225,6 +330,12 @@ class FlaskGetFormValue(Component):
 
 @xai_component
 class FlaskGetRequestJson(Component):
+    """Retrieves JSON data from a request payload in a Flask application.
+
+    ##### outPorts:
+    - value: The JSON data parsed from the request payload.
+    """
+
     value: OutArg[any]
     
     def execute(self, ctx):
