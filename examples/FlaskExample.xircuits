@@ -6,7 +6,7 @@
     "gridSize": 0,
     "layers": [
         {
-            "id": "9d87c7fe-82f0-494c-8944-926c69f38aea",
+            "id": "a10add6a-6b54-4b27-b089-e498be6a525b",
             "type": "diagram-links",
             "isSvg": true,
             "transformed": true,
@@ -486,7 +486,7 @@
             }
         },
         {
-            "id": "f0a505a0-2d86-4b24-be2f-55c65f698c8a",
+            "id": "9017bf38-ebfe-493a-ad16-6d233682da9c",
             "type": "diagram-nodes",
             "isSvg": false,
             "transformed": true,
@@ -1458,7 +1458,7 @@
                     "selected": false,
                     "extras": {
                         "type": "comment",
-                        "commentInput": "curl -X POST -d \"key1=value1&key2=value2\" http://localhost:5000/echo"
+                        "commentInput": "curl -X POST -H \"Content-Type: application/json\" -d '{\"key1\":\"value1\", \"key2\":\"value2\"}' http://localhost:5000/echo\n"
                     },
                     "x": -40.658,
                     "y": 425.488,
@@ -1609,13 +1609,13 @@
                 "7bc3bdb9-c693-4e49-b3cf-7e025df5a3ae": {
                     "id": "7bc3bdb9-c693-4e49-b3cf-7e025df5a3ae",
                     "type": "custom-node",
-                    "selected": false,
+                    "selected": true,
                     "extras": {
                         "type": "comment",
                         "commentInput": "Try running these requests via CLI terminal!"
                     },
-                    "x": 388.253,
-                    "y": -196.238,
+                    "x": 393.316,
+                    "y": -174.3,
                     "ports": [],
                     "name": "Comment:",
                     "color": "rgb(255,255,255)",
