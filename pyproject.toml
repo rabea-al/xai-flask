@@ -1,6 +1,6 @@
 [project]
 name = "xai-flask"
-version = "0.1.0"
+version = "0.5.0"
 description = "A Xircuits component library for Flask!"
 authors = [{ name = "XpressAI", email = "eduardo@xpress.ai" }]
 license = "Apache-2.0"
@@ -11,3 +11,4 @@ keywords = ["xircuits", "flask"]
 # Xircuits-specific configurations
 [tool.xircuits]
 requirements_path = "requirements.txt"
+default_example_path = "examples/DeclarativeExample.xircuits"
