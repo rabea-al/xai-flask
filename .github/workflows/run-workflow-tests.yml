@@ -1,0 +1,139 @@
+name: Run Xircuits Workflows Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: "*"
+  workflow_dispatch:
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+    env:
+      TEST_XIRCUITS: |
+        examples/DeclarativeExample.xircuits
+        examples/InlineExample.xircuits
+        
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Create virtual environment
+      run: |
+        python -m venv venv
+        echo "${{ github.workspace }}/venv/bin" >> $GITHUB_PATH
+
+    - name: Install xircuits in virtual environment
+      run: pip install xircuits
+
+    - name: Set Environment Variables
+      run: |
+        LIBRARY_NAME=$(echo "${GITHUB_REPOSITORY##*/}" | sed 's/-/_/g')
+        echo "LIBRARY_NAME=$LIBRARY_NAME" >> $GITHUB_ENV
+        COMPONENT_LIBRARY_PATH="xai_components/${LIBRARY_NAME}"
+        echo "COMPONENT_LIBRARY_PATH=$COMPONENT_LIBRARY_PATH" >> $GITHUB_ENV
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          echo "BRANCH_NAME=${{ github.head_ref }}" >> $GITHUB_ENV
+        else
+          echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
+        fi
+
+    - name: List Xircuits
+      run: xircuits list
+
+    - name: Clone Repository
+      run: |
+        rm -rf ${{ env.COMPONENT_LIBRARY_PATH }}
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          REPO_URL="${{ github.event.pull_request.head.repo.clone_url }}"
+        else
+          REPO_URL="https://github.com/${{ github.repository }}"
+        fi
+        git clone -b ${{ env.BRANCH_NAME }} $REPO_URL ${{ env.COMPONENT_LIBRARY_PATH }}
+
+    - name: Install Component Library
+      run: |
+        if [ -f "${{ env.COMPONENT_LIBRARY_PATH }}/requirements.txt" ]; then
+          echo "requirements.txt found, installing dependencies..."
+          pip install -r ${{ env.COMPONENT_LIBRARY_PATH }}/requirements.txt
+        else
+          echo "requirements.txt not found."
+        fi
+          
+    - name: Test Flask .xircuits Workflow
+      run: |
+          export PYTHONPATH="${GITHUB_WORKSPACE}:${PYTHONPATH}"
+          LOG_FILE="${GITHUB_WORKSPACE}/workflow_logs.txt"
+          TEST_FILES=$(echo "$TEST_XIRCUITS" | tr '\n' ' ')
+          echo "Starting Flask .xircuits workflow test..." > $LOG_FILE
+          IFS=' ' read -r -a FILE_ARRAY <<< "$TEST_FILES"
+          if [ ${#FILE_ARRAY[@]} -eq 0 ]; then
+            echo "Error: No .xircuits files specified for testing." | tee -a $LOG_FILE
+            exit 1
+          fi
+          for FILE in "${FILE_ARRAY[@]}"; do
+            FULL_PATH="${COMPONENT_LIBRARY_PATH}/${FILE}"
+            echo "Processing file: $FULL_PATH" | tee -a $LOG_FILE
+            if [ ! -f "$FULL_PATH" ]; then
+              echo "Error: Xircuits file not found at $FULL_PATH" | tee -a $LOG_FILE
+              exit 1
+            fi
+            echo "Compiling Xircuits workflow: ${FULL_PATH}" >> $LOG_FILE
+            xircuits compile "$FULL_PATH" "${FULL_PATH%.*}.py" 2>&1 | tee -a $LOG_FILE
+            if [ ! -f "${FULL_PATH%.*}.py" ]; then
+              echo "Error: Compiled Python file not found at ${FULL_PATH%.*}.py" | tee -a $LOG_FILE
+              exit 1
+            fi
+            echo "Running Python script: ${FULL_PATH%.*}.py" >> $LOG_FILE
+            python "${FULL_PATH%.*}.py" 2>&1 | tee -a $LOG_FILE &
+            PYTHON_PID=$!
+            echo "Waiting for Flask server to initialize..." >> $LOG_FILE
+            sleep 10
+            TEST_ENDPOINT="http://127.0.0.1:8080/hello/world"
+            RETRIES=3
+            SUCCESS=0
+            for i in $(seq 1 $RETRIES); do
+              echo "Attempt $i: Checking endpoint $TEST_ENDPOINT..." | tee -a $LOG_FILE
+              if curl -s "$TEST_ENDPOINT" | grep -q "Hello World!"; then
+                echo "Flask test successful: Endpoint $TEST_ENDPOINT is running as expected." | tee -a $LOG_FILE
+                SUCCESS=1
+                break
+              else
+                echo "Attempt $i failed. Retrying in 5 seconds..." | tee -a $LOG_FILE
+                sleep 5
+              fi
+            done
+            if [ $SUCCESS -ne 1 ]; then
+              echo "Flask test failed: Endpoint $TEST_ENDPOINT did not respond as expected after $RETRIES attempts." | tee -a $LOG_FILE
+              if ps -p $PYTHON_PID > /dev/null; then
+                echo "Killing Python script process (PID: $PYTHON_PID)..." >> $LOG_FILE
+                kill -9 $PYTHON_PID
+              fi
+              exit 1
+            fi
+            if ps -p $PYTHON_PID > /dev/null; then
+              echo "Python script ran successfully for the duration of the test. Killing the process..." | tee -a $LOG_FILE
+              kill -9 $PYTHON_PID
+            else
+              echo "Python script finished execution before the test completed." | tee -a $LOG_FILE
+            fi
+            echo "Completed testing file: $FULL_PATH" | tee -a $LOG_FILE
+          done
+          echo "All Flask and Python script tests completed successfully." >> $LOG_FILE
+      
+    - name: Upload log file
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.LIBRARY_NAME }}-validation-workflow-${{ matrix.python-version }}
+        path: ${{ github.workspace }}/workflow_logs.txt
