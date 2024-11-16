@@ -8,6 +8,13 @@ readme = "README.md"
 repository = "https://github.com/XpressAI/xai-flask"
 keywords = ["xircuits", "flask"]
 
+dependencies = [
+    "Flask==3.0.3",
+    "Flask-APScheduler==1.13.1",
+    "Flask-Cors==5.0.0",
+    "vecto-sdk==0.2.3"
+]
+
 # Xircuits-specific configurations
 [tool.xircuits]
 requirements_path = "requirements.txt"
