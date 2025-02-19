@@ -11,8 +11,7 @@ keywords = ["xircuits", "flask"]
 dependencies = [
     "Flask==3.0.2",
     "Flask-APScheduler==1.13.1",
-    "Flask-Cors==4.0.0",
-    "vecto-sdk==0.2.3"
+    "Flask-Cors==4.0.0"
 ]
 
 # Xircuits-specific configurations
