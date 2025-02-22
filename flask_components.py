@@ -468,23 +468,28 @@ class FlaskInitScheduler(Component):
 
         for task in ctx.setdefault(FLASK_JOBS_KEY, []):
             running_flag_key = 'flask_scheduler_' + task.job_id.value + '_running'
-            @scheduler.task('interval', id=task.job_id.value, seconds=task.seconds.value,
-                            misfire_grace_time=task.seconds.value)
-            def job():
-                app = ctx[FLASK_APP_KEY]
-                if not ctx.setdefault(running_flag_key, False):
-                    ctx[running_flag_key] = True
+            job_function_name = f"job_{task.job_id.value}"
 
-                    app.logger.info(f'Running interval job: {task.job_id.value}...')
-                    try:
-                        SubGraphExecutor(task).do(ctx)
-                        app.logger.info(f'Interval job {task.job_id.value} done.')
-                    except Exception as e:
-                        app.logger.error(f'Interval job {task.job_id.value} failed with {e}.')
-                    finally:
-                        ctx[running_flag_key] = False
-                else:
-                    app.logger.info(f"Job {task.job_id.value} currently running.  Skipping execution.")
+            # Create a unique job function using exec with the decorator
+            exec(f"""
+@scheduler.task('interval', id='{task.job_id.value}', seconds={task.seconds.value},
+                 misfire_grace_time={task.seconds.value})
+def {job_function_name}():
+    app = ctx['flask_app']
+    if not ctx.setdefault(running_flag_key, False):
+        ctx[running_flag_key] = True
+
+        app.logger.info(f'Running interval job: {task.job_id.value}...')
+        try:
+            SubGraphExecutor(task).do(ctx)
+            app.logger.info(f'Interval job {task.job_id.value} done.')
+        except Exception as e:
+            app.logger.error(f'Interval job {task.job_id.value} failed with {{e}}.')
+        finally:
+            ctx[running_flag_key] = False
+    else:
+        app.logger.info(f"Job {{task.job_id.value}} currently running. Skipping execution.")
+""", {**globals(), **locals()})
 
 
 class Config:
