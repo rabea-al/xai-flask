@@ -2,6 +2,7 @@ from xai_components.base import InArg, OutArg, InCompArg, Component, BaseCompone
     dynalist
 from flask import Flask, request, redirect, render_template, session, jsonify, stream_with_context, Response
 from flask.views import View
+from flask_cors import CORS
 
 import random
 import string
@@ -53,6 +54,7 @@ class FlaskCreateApp(Component):
             static_url_path="" if self.static_url_path.value is None else self.static_url_path.value
         )
         ctx[FLASK_APP_KEY].secret_key = "opensesame" if self.secret_key.value is None else self.secret_key.value
+        CORS(ctx[FLASK_APP_KEY])
 
         for route in ctx.setdefault(FLASK_ROUTES_KEY, []):
             methods = [route.method] if hasattr(route, 'method') else route.methods.value
