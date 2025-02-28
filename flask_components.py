@@ -29,11 +29,11 @@ class Route(View):
     def dispatch_request(self, **kwargs):
         self.ctx[FLASK_RES_KEY] = ('', 204)
         self.route.parameters.value = kwargs
-        ctx[FLASK_APP_LOCK_KEY].acquire()
+        self.ctx[FLASK_APP_LOCK_KEY].acquire()
         try:
             SubGraphExecutor(self.route.body if hasattr(self.route, 'body') else self.route).do(self.ctx)
         finally:
-            ctx[FLASK_APP_LOCK_KEY].release()
+            self.ctx[FLASK_APP_LOCK_KEY].release()
         response = self.ctx[FLASK_RES_KEY]
         return response
 
