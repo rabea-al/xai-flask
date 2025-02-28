@@ -491,13 +491,11 @@ def {job_function_name}():
 
         app.logger.info(f'Running interval job: {task.job_id.value}...')
         try:
-            ctx[FLASK_APP_LOCK_KEY].acquire()
             SubGraphExecutor(task).do(ctx)
             app.logger.info(f'Interval job {task.job_id.value} done.')
         except Exception as e:
             app.logger.error(f'Interval job {task.job_id.value} failed with {{e}}.')
         finally:
-            ctx[FLASK_APP_LOCK_KEY].release()
             ctx[running_flag_key] = False
     else:
         app.logger.info(f"Job {{task.job_id.value}} currently running. Skipping execution.")
