@@ -2,10 +2,14 @@ from xai_components.base import InArg, OutArg, InCompArg, Component, BaseCompone
     dynalist
 from flask import Flask, request, redirect, render_template, session, jsonify, stream_with_context, Response
 from flask.views import View
+from flask_cors import CORS
+
+import threading
 
 import random
 import string
 
+FLASK_APP_LOCK_KEY = 'flask_app_lock'
 FLASK_APP_KEY = 'flask_app'
 FLASK_RES_KEY = 'flask_res'
 FLASK_STREAMING_RES_KEY = 'flask_streaming_res'
@@ -25,7 +29,11 @@ class Route(View):
     def dispatch_request(self, **kwargs):
         self.ctx[FLASK_RES_KEY] = ('', 204)
         self.route.parameters.value = kwargs
-        SubGraphExecutor(self.route.body if hasattr(self.route, 'body') else self.route).do(self.ctx)
+        self.ctx[FLASK_APP_LOCK_KEY].acquire()
+        try:
+            SubGraphExecutor(self.route.body if hasattr(self.route, 'body') else self.route).do(self.ctx)
+        finally:
+            self.ctx[FLASK_APP_LOCK_KEY].release()
         response = self.ctx[FLASK_RES_KEY]
         return response
 
@@ -53,6 +61,8 @@ class FlaskCreateApp(Component):
             static_url_path="" if self.static_url_path.value is None else self.static_url_path.value
         )
         ctx[FLASK_APP_KEY].secret_key = "opensesame" if self.secret_key.value is None else self.secret_key.value
+        CORS(ctx[FLASK_APP_KEY])
+        ctx[FLASK_APP_LOCK_KEY] = threading.Lock()
 
         for route in ctx.setdefault(FLASK_ROUTES_KEY, []):
             methods = [route.method] if hasattr(route, 'method') else route.methods.value
@@ -468,23 +478,28 @@ class FlaskInitScheduler(Component):
 
         for task in ctx.setdefault(FLASK_JOBS_KEY, []):
             running_flag_key = 'flask_scheduler_' + task.job_id.value + '_running'
-            @scheduler.task('interval', id=task.job_id.value, seconds=task.seconds.value,
-                            misfire_grace_time=task.seconds.value)
-            def job():
-                app = ctx[FLASK_APP_KEY]
-                if not ctx.setdefault(running_flag_key, False):
-                    ctx[running_flag_key] = True
+            job_function_name = f"job_{task.job_id.value}"
 
-                    app.logger.info(f'Running interval job: {task.job_id.value}...')
-                    try:
-                        SubGraphExecutor(task).do(ctx)
-                        app.logger.info(f'Interval job {task.job_id.value} done.')
-                    except Exception as e:
-                        app.logger.error(f'Interval job {task.job_id.value} failed with {e}.')
-                    finally:
-                        ctx[running_flag_key] = False
-                else:
-                    app.logger.info(f"Job {task.job_id.value} currently running.  Skipping execution.")
+            # Create a unique job function using exec with the decorator
+            exec(f"""
+@scheduler.task('interval', id='{task.job_id.value}', seconds={task.seconds.value},
+                 misfire_grace_time={task.seconds.value})
+def {job_function_name}():
+    app = ctx['flask_app']
+    if not ctx.setdefault(running_flag_key, False):
+        ctx[running_flag_key] = True
+
+        app.logger.info(f'Running interval job: {task.job_id.value}...')
+        try:
+            SubGraphExecutor(task).do(ctx)
+            app.logger.info(f'Interval job {task.job_id.value} done.')
+        except Exception as e:
+            app.logger.error(f'Interval job {task.job_id.value} failed with {{e}}.')
+        finally:
+            ctx[running_flag_key] = False
+    else:
+        app.logger.info(f"Job {{task.job_id.value}} currently running. Skipping execution.")
+""", {**globals(), **locals()})
 
 
 class Config:
